@@ -1,0 +1,66 @@
+==Язык Си==
+
+===Книги===
+
+Брайан У. Керниган, Деннис М. Ритчи.
+Язык программирования Си.
+2-е издание.
+[http://www.williamspublishing.com/Books/978-5-8459-0891-9.html]
+
+Стивен Прата.
+Язык программирования Си. Лекции и упражнения.
+6-е издание.
+[http://www.williamspublishing.com/Books/978-5-8459-1950-2.html] 
+
+Предыдущее 5-е издание тоже вполне сгодится: 
+[http://www.williamspublishing.com/Books/5-8459-0986-4.html] 
+
+Бен Клеменс.
+Язык С в XXI веке.
+[http://dmkpress.com/catalog/computer/programming/c/978-5-97060-101-3/] 
+
+Пол Дейтел, Харви Дейтел.
+Как программировать на C.
+7-е издание.
+
+Пол Дейтел, Харви Дейтел.
+Си для программистов с введением в С11.
+[http://dmkpress.com/catalog/computer/programming/c/978-5-97060-073-3/] 
+
+В. В. Подбельский, С. С. Фомин.
+Курс программирования на языке Си.
+[http://dmkpress.com/catalog/computer/programming/c/978-5-94074-449-8/] 
+
+===Онлайн-ресурсы===
+
+Язык программирования Си (Б. Керниган, Д. Ритчи, 1-е издание): 
+[http://www.intuit.ru/department/pl/cpl/] 
+(осторожно: это 1-е издание, и оно ещё дальше от современного стандарта языка, чем 2-е&#33;) 
+
+"Язык Си в примерах" c Wikibooks: 
+[http://ru.wikibooks.org/wiki/%D0%AF%D0%B7%D1%8B%D0%BA_%D0%A1%D0%B8_%D0%B2_%D0%BF%D1%80%D0%B8%D0%BC%D0%B5%D1%80%D0%B0%D1%85|http://ru.wikibooks.org/wiki/%D0%AF%D0%B7%D1%8B%D0%BA_%D0%A1%D0%B8_%D0%B...] 
+
+Программирование на языке Си (Громов Ю.Ю., Татаренко С.И.): 
+[http://citforum.ru/programming/c/dir.shtml] 
+
+Основы программирования на языке Си (Н.А. Калинина, Н.И. Костюкова): 
+[http://www.intuit.ru/department/pl/c/] 
+
+==Vim==
+
+Арнольд Роббинс, Элберт Ханна, Линда Лэмб.
+Изучаем редакторы vi и Vim.
+7-е издание.
+[http://www.symbol.ru/catalog/books/redactory_vi_vim.html] 
+
+Дрю Нейл.
+Практическое использование Vim.
+[http://dmkpress.com/catalog/computer/programming/978-5-94074-972-1/] 
+
+==HTML 5==
+
+Официальный стандарт консорциума W3C (W3C Recommendation) 
+[http://www.w3.org/TR/html5/] 
+
+Онлайн пособия, справочники и примеры по HTML от w3schools (HTML Tutorials, References, Examples) 
+[http://www.w3schools.com/html/] 
