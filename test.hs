@@ -4,13 +4,13 @@
 {-# OPTIONS_GHC -Wall -Wincomplete-record-updates -Wincomplete-uni-patterns #-}
 
 {-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell   #-}
 
 import           Prelude                   hiding (FilePath)
 
-import           Control.Lens
 import           Control.Monad.State
 import           Control.Monad.Writer
 import           Data.Aeson.TH
@@ -29,27 +29,24 @@ data Language = NoLanguage | C
     deriving Show
 
 data ExampleConfig = ExampleConfig
-    { _after   :: Maybe Text
-    , _include :: Maybe [Text]
+    { after   :: Maybe Text
+    , include :: Maybe [Text]
     }
     deriving Show
 
-deriveFromJSON defaultOptions{fieldLabelModifier = drop 1} ''ExampleConfig
-makeLenses ''ExampleConfig
+deriveFromJSON defaultOptions ''ExampleConfig
 
 defaultExampleConfig :: ExampleConfig
-defaultExampleConfig = ExampleConfig {_after = Nothing, _include = Nothing}
+defaultExampleConfig = ExampleConfig {after = Nothing, include = Nothing}
 
 data Example = Example
-    { _config    :: ExampleConfig
-    , _content   :: Text
-    , _filepath  :: FilePath
-    , _language  :: Language
-    , _startLine :: Natural
+    { config    :: ExampleConfig
+    , content   :: Text
+    , filepath  :: FilePath
+    , language  :: Language
+    , startLine :: Natural
     }
     deriving Show
-
-makeLenses ''Example
 
 main :: IO ()
 main = sh $ do
@@ -87,26 +84,28 @@ extract file = do
                 (exLanguage, _) ->
                     error $ "unknown language: " ++ show exLanguage
 
-    appendCurrent line = _Just . content <>= Text.cons '\n' line
+    appendCurrent line = modify $ fmap $ \case
+        example@Example { content } ->
+            example { content = content <> "\n" <> line }
 
     flush example = do
         tell $ DList.singleton example
         put Nothing
 
     start lineNo = put $ Just Example
-        { _config    = defaultExampleConfig
-        , _content   = Text.empty
-        , _filepath  = file
-        , _language  = NoLanguage
-        , _startLine = lineNo
+        { config    = defaultExampleConfig
+        , content   = Text.empty
+        , filepath  = file
+        , language  = NoLanguage
+        , startLine = lineNo
         }
 
     startWith configText lineNo = put $ Just Example
-        { _config    = decodeConfig configText
-        , _content   = Text.empty
-        , _filepath  = file
-        , _language  = C
-        , _startLine = lineNo
+        { config    = decodeConfig configText
+        , content   = Text.empty
+        , filepath  = file
+        , language  = C
+        , startLine = lineNo
         }
       where
         decodeConfig =
@@ -118,7 +117,7 @@ extract file = do
         fromRight a = either a id
 
 check :: Example -> Shell ()
-check ex = case ex ^. language of
+check example = case language of
     NoLanguage -> pure () -- ok
     C          -> do
         systemTempDir <- fromString <$> liftIO getTemporaryDirectory
@@ -128,13 +127,11 @@ check ex = case ex ^. language of
             $  writeTextFile src
             $  Text.unlines
             $  [ format ("#include \"" % s % "\"") inc
-               | inc <- ex ^. config . include . _Just
+               | inc <- fromMaybe [] include
                ]
-            ++ [ format ("#line " % d % " \"" % fp % "\"")
-                        (ex ^. startLine)
-                        (ex ^. filepath)
-               , ex ^. content
-               , ex ^. config . after . _Just
+            ++ [ format ("#line " % d % " \"" % fp % "\"") startLine filepath
+               , content
+               , fromMaybe "" after
                ]
         wd <- pwd
         procs
@@ -149,6 +146,9 @@ check ex = case ex ^. language of
             , "-o" <> encodeText (src `replaceExtension` "o")
             ]
             empty
+  where
+    Example { config, content, filepath, language, startLine } = example
+    ExampleConfig { after, include }                           = config
 
 encodeText :: FilePath -> Text
 encodeText = fromString . encodeString
