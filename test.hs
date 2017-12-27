@@ -5,19 +5,51 @@
 
 {-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell   #-}
+
+import           Debug.Trace
 
 import           Prelude                   hiding (FilePath)
 
 import           Control.Lens
 import           Control.Monad.RWS
+import           Data.Aeson.TH
+import           Data.Char
 import qualified Data.DList                as DList
 import           Data.Foldable
 import           Data.Maybe
 import qualified Data.Text                 as Text
+import           Data.Text.Encoding
+import           Data.Yaml                 as Yaml
 import           Filesystem.Path.CurrentOS (encodeString)
 import           Numeric.Natural
 import           System.Directory
 import           Turtle
+
+data Language = NoLanguage | C
+    deriving Show
+
+newtype ExampleConfig = ExampleConfig
+    { _include :: Maybe [Text]
+    }
+    deriving Show
+
+deriveFromJSON defaultOptions{fieldLabelModifier = drop 1} ''ExampleConfig
+makeLenses ''ExampleConfig
+
+defaultExampleConfig :: ExampleConfig
+defaultExampleConfig = ExampleConfig {_include = Nothing}
+
+data Example = Example
+    { _config    :: ExampleConfig
+    , _content   :: Text
+    , _filepath  :: FilePath
+    , _language  :: Language
+    , _startLine :: Natural
+    }
+    deriving Show
+
+makeLenses ''Example
 
 main :: IO ()
 main = sh $ do
@@ -30,68 +62,86 @@ main = sh $ do
         Just "sh"        -> pure () -- ignore
         ext              -> error $ "I don't know what to do with " ++ repr ext
 
-data Language = NoLanguage | C
-    deriving Show
-
-data Example = Example
-    { file      :: FilePath
-    , startLine :: Natural
-    , language  :: Language
-    , content   :: Text
-    }
-    deriving Show
-
 checkExamples :: FilePath -> Shell ()
 checkExamples = extract >=> check
 
 extract :: FilePath -> Shell Example
 extract file = do
-    fileContents                <- liftIO $ readTextFile file
-    ((Nothing, _, _), examples) <-
+    fileContents        <- liftIO $ readTextFile file
+    (Nothing, examples) <-
         exec $ for_ (zip [1 ..] $ Text.lines fileContents) $ \(lineNo, line) ->
             do
-                currentLanguage <- use _1
+                currentExample <- get
                 case Text.stripPrefix "```" line of
                     Nothing ->
-                        when (isJust currentLanguage)
-                            $   _2
-                            <>= DList.singleton line
-                    Just "" -> case currentLanguage of
-                        Just language -> do
-                            content   <- Text.unlines . DList.toList <$> use _2
-                            startLine <- use _3
-                            tell $ DList.singleton Example
-                                { file
-                                , language
-                                , content
-                                , startLine
-                                }
-                            put (Nothing, DList.empty, 0)
-                        Nothing -> put (Just NoLanguage, DList.empty, lineNo)
-                    Just "c"
-                        | isJust currentLanguage -> error
-                            "cannot start snippet inside snippet"
-                        | otherwise -> put (Just C, DList.empty, lineNo)
-                    Just language ->
-                        error $ "unknown language: " ++ repr language
+                        when (isJust currentExample)
+                            $   _Just
+                            .   content
+                            <>= Text.cons '\n' line
+                    Just "" -> case currentExample of
+                        Just example -> do
+                            tell $ DList.singleton example
+                            put Nothing
+                        Nothing -> put $ Just Example
+                            { _config    = defaultExampleConfig
+                            , _content   = Text.empty
+                            , _filepath  = file
+                            , _language  = NoLanguage
+                            , _startLine = lineNo
+                            }
+                    Just languageSpec ->
+                        case Text.break isSpace languageSpec of
+                            ("c", conf)
+                                | isJust currentExample -> error
+                                    "cannot start snippet inside snippet"
+                                | otherwise -> put $ Just Example
+                                    { _config    = either error id
+                                        $ traceShowId
+                                        $ Yaml.decodeEither
+                                        $ encodeUtf8
+                                        $ traceShowId conf
+                                    , _content   = Text.empty
+                                    , _filepath  = file
+                                    , _language  = C
+                                    , _startLine = lineNo
+                                    }
+                            (exLanguage, _) ->
+                                error $ "unknown language: " ++ repr exLanguage
     select examples
-    where exec action = execRWST action () (Nothing, DList.empty, 0)
+    where exec action = execRWST action () Nothing
 
 check :: Example -> Shell ()
-check Example { file, startLine, language, content } = case language of
+check ex = case ex ^. language of
     NoLanguage -> pure () -- ok
     C          -> do
         systemTempDir <- fromString <$> liftIO getTemporaryDirectory
         tmp           <- mktempdir systemTempDir "ComputerScience.test."
         let src = tmp </> "source.c"
-        liftIO $ writeTextFile src $ format
-            ("#line " % d % " \"" % fp % "\" \n" % s)
-            (startLine + 1)
-            file
-            content
-        procs "gcc"
-              ["-Wall", "-Werror", "-Wextra", "-pedantic", encodeText src]
-              empty
+        liftIO
+            $  writeTextFile src
+            $  traceShow ex
+            $  Text.unlines
+            $  [ format ("#include \"" % s % "\"") inc
+               | inc <- ex ^. config . include . _Just
+               ]
+            ++ [ format ("#line " % d % " \"" % fp % "\"")
+                        (ex ^. startLine)
+                        (ex ^. filepath)
+               , ex ^. content
+               ]
+        wd <- pwd
+        procs
+            "gcc"
+            [ "-c"
+            , "-I"
+            , encodeText wd
+            , "-Wall"
+            , "-Werror"
+            , "-Wextra"
+            , "-pedantic"
+            , encodeText src
+            ]
+            empty
 
 encodeText :: FilePath -> Text
 encodeText = fromString . encodeString
