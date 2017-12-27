@@ -26,7 +26,7 @@ int main(void)
 
 1\. "Магическое начало":
 
-```c
+```c {after: '}'}
 #include <stdio.h>
 
 int main(void)
