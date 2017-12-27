@@ -11,7 +11,8 @@
 import           Prelude                   hiding (FilePath)
 
 import           Control.Lens
-import           Control.Monad.RWS
+import           Control.Monad.State
+import           Control.Monad.Writer
 import           Data.Aeson.TH
 import           Data.Char
 import qualified Data.DList                as DList
@@ -69,10 +70,12 @@ checkExamples = extract >=> check
 extract :: FilePath -> Shell Example
 extract file = do
     fileContents <- liftIO $ readTextFile file
-    let (lastExample, examples) = execRWS
-            (for_ (zip [1 ..] $ Text.lines fileContents) parseExampleLine)
-            ()
-            Nothing
+    let (lastExample, examples) =
+            runWriter
+                $ (`execStateT` Nothing)
+                $ mapM_ parseExampleLine
+                $ zip [1 ..]
+                $ Text.lines fileContents
     when (isJust lastExample) $ error $ show lastExample
     select examples
   where
