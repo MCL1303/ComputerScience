@@ -69,14 +69,15 @@ checkExamples = extract >=> check
 
 extract :: FilePath -> Shell Example
 extract file = do
-    fileContents        <- liftIO $ readTextFile file
-    (Nothing, examples) <- exec
-        $ for_ (zip [1 ..] $ Text.lines fileContents) parseExampleLine
+    fileContents <- liftIO $ readTextFile file
+    let (lastExample, examples) =
+            exec $ for_ (zip [1 ..] $ Text.lines fileContents) parseExampleLine
+    when (isJust lastExample) $ error $ show lastExample
     select examples
   where
-    exec action = execRWST action () Nothing
+    exec action = execRWS action () Nothing
     parseExampleLine
-        :: (Natural, Text) -> RWST () (DList Example) (Maybe Example) Shell ()
+        :: (Natural, Text) -> RWS () (DList Example) (Maybe Example) ()
     parseExampleLine (lineNo, line) = do
         currentExample <- get
         case Text.stripPrefix "```" line of
