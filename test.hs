@@ -16,7 +16,6 @@ import           Control.Monad.Writer
 import           Data.Aeson.TH
 import           Data.Char
 import qualified Data.DList                as DList
-import           Data.Foldable
 import           Data.Maybe
 import qualified Data.Text                 as Text
 import           Data.Text.Encoding
