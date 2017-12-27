@@ -14,7 +14,6 @@ import           Control.Lens
 import           Control.Monad.RWS
 import           Data.Aeson.TH
 import           Data.Char
-import           Data.DList                (DList)
 import qualified Data.DList                as DList
 import           Data.Foldable
 import           Data.Maybe
@@ -77,8 +76,6 @@ extract file = do
     when (isJust lastExample) $ error $ show lastExample
     select examples
   where
-    parseExampleLine
-        :: (Natural, Text) -> RWS () (DList Example) (Maybe Example) ()
     parseExampleLine (lineNo, line) = do
         currentExample <- get
         case Text.stripPrefix "```" line of
@@ -93,10 +90,13 @@ extract file = do
                     | otherwise -> startWith configText lineNo
                 (exLanguage, _) ->
                     error $ "unknown language: " ++ show exLanguage
+
     appendCurrent line = _Just . content <>= Text.cons '\n' line
+
     flush example = do
         tell $ DList.singleton example
         put Nothing
+
     start lineNo = put $ Just Example
         { _config    = defaultExampleConfig
         , _content   = Text.empty
@@ -104,6 +104,7 @@ extract file = do
         , _language  = NoLanguage
         , _startLine = lineNo
         }
+
     startWith configText lineNo = put $ Just Example
         { _config    = decodeConfig configText
         , _content   = Text.empty
