@@ -53,15 +53,9 @@ makeLenses ''Example
 
 main :: IO ()
 main = sh $ do
-    file <- ls "."
-    case extension file of
-        Nothing          -> pure () -- ignore
-        Just "h"         -> pure () -- ignore
-        Just "hs"        -> pure () -- ignore
-        Just "md"        -> checkExamples file
-        Just "mediawiki" -> pure () -- ignore
-        Just "sh"        -> pure () -- ignore
-        ext              -> error $ "I don't know what to do with " ++ show ext
+    file      <- ls "."
+    Just "md" <- pure $ extension file
+    checkExamples file
 
 checkExamples :: FilePath -> Shell ()
 checkExamples = extract >=> check
