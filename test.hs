@@ -57,6 +57,7 @@ main = sh $ do
     file <- ls "."
     case extension file of
         Nothing          -> pure () -- ignore
+        Just "h"         -> pure () -- ignore
         Just "hs"        -> pure () -- ignore
         Just "md"        -> checkExamples file
         Just "mediawiki" -> pure () -- ignore

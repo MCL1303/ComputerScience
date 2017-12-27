@@ -37,13 +37,13 @@ int main(void)
 
 В нашем примере – это только один оператор с вызовом функции `printf`:
 
-```c
+```c {include: [stdio.h, main_begin.h], after: '}'}
     printf("Hello World!\n");
 ```
 
 3\. "Магическое окончание":
 
-```c
+```c {include: [main_begin.h]}
     return 0;
 }
 ```
