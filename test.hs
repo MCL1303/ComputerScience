@@ -62,7 +62,7 @@ main = sh $ do
         Just "md"        -> checkExamples file
         Just "mediawiki" -> pure () -- ignore
         Just "sh"        -> pure () -- ignore
-        ext              -> error $ "I don't know what to do with " ++ repr ext
+        ext              -> error $ "I don't know what to do with " ++ show ext
 
 checkExamples :: FilePath -> Shell ()
 checkExamples = extract >=> check
@@ -70,12 +70,13 @@ checkExamples = extract >=> check
 extract :: FilePath -> Shell Example
 extract file = do
     fileContents <- liftIO $ readTextFile file
-    let (lastExample, examples) =
-            exec $ for_ (zip [1 ..] $ Text.lines fileContents) parseExampleLine
+    let (lastExample, examples) = execRWS
+            (for_ (zip [1 ..] $ Text.lines fileContents) parseExampleLine)
+            ()
+            Nothing
     when (isJust lastExample) $ error $ show lastExample
     select examples
   where
-    exec action = execRWS action () Nothing
     parseExampleLine
         :: (Natural, Text) -> RWS () (DList Example) (Maybe Example) ()
     parseExampleLine (lineNo, line) = do
@@ -91,7 +92,7 @@ extract file = do
                         "cannot start snippet inside snippet"
                     | otherwise -> startWith configText lineNo
                 (exLanguage, _) ->
-                    error $ "unknown language: " ++ repr exLanguage
+                    error $ "unknown language: " ++ show exLanguage
     appendCurrent line = _Just . content <>= Text.cons '\n' line
     flush example = do
         tell $ DList.singleton example
