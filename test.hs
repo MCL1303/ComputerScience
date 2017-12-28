@@ -75,7 +75,9 @@ main = do
     putStrLn "OK"
 
 checkSnippets :: FilePath -> IO ()
-checkSnippets = extract >=> traverse_ check
+checkSnippets file = do
+    snippets <- extract file
+    for_ snippets check
 
 extract :: FilePath -> IO [Snippet]
 extract file = do
