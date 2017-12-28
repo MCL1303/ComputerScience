@@ -4,7 +4,6 @@
         --package=directory
         --package=filepath
         --package=interpolate
-        --package=mtl
         --package=process
         --package=temporary
         --package=text
