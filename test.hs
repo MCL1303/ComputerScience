@@ -90,18 +90,19 @@ extract file = do
     when (isJust lastExample) $ error $ show lastExample
     pure $ toList examples
   where
+
     parseExampleLine (lineNo, line) = do
         currentExample <- get
         case Text.stripPrefix "```" line of
             Nothing -> when (isJust currentExample) $ appendCurrent line
             Just "" -> case currentExample of
                 Just example -> flush example
-                Nothing      -> start lineNo
+                Nothing      -> startNoLanguage lineNo
             Just languageSpec -> case Text.break isSpace languageSpec of
                 ("c", configText)
                     | isJust currentExample -> error
                         "cannot start snippet inside snippet"
-                    | otherwise -> startWith configText lineNo
+                    | otherwise -> start configText lineNo
                 (exLanguage, _) ->
                     error $ "unknown language: " ++ show exLanguage
 
@@ -113,7 +114,7 @@ extract file = do
         tell $ DList.singleton example
         put Nothing
 
-    start lineNo = put $ Just Example
+    startNoLanguage lineNo = put $ Just Example
         { config    = defaultExampleConfig
         , content   = Text.empty
         , filepath  = file
@@ -121,7 +122,7 @@ extract file = do
         , startLine = lineNo
         }
 
-    startWith configText lineNo = put $ Just Example
+    start configText lineNo = put $ Just Example
         { config    = decodeConfig configText
         , content   = Text.empty
         , filepath  = file
