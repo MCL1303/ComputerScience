@@ -44,19 +44,19 @@ import           System.Process
 data Language = NoLanguage | C
     deriving Show
 
-data ExampleConfig = ExampleConfig
+data SnippetConfig = SnippetConfig
     { after   :: Maybe Text
     , include :: Maybe [FilePath]
     }
     deriving Show
 
-deriveFromJSON defaultOptions ''ExampleConfig
+deriveFromJSON defaultOptions ''SnippetConfig
 
-defaultExampleConfig :: ExampleConfig
-defaultExampleConfig = ExampleConfig {after = Nothing, include = Nothing}
+defaultSnippetConfig :: SnippetConfig
+defaultSnippetConfig = SnippetConfig {after = Nothing, include = Nothing}
 
-data Example = Example
-    { config    :: ExampleConfig
+data Snippet = Snippet
+    { config    :: SnippetConfig
     , content   :: Text
     , filepath  :: FilePath
     , language  :: Language
@@ -70,59 +70,57 @@ main = do
     for_ (sort files) $ \file -> case takeExtension file of
         ".md" -> do
             putStr $ file ++ " ...\t"
-            checkExamples file
+            checkSnippets file
             putStrLn "OK"
         _ -> pure () -- ignore
     putStrLn "OK"
 
-checkExamples :: FilePath -> IO ()
-checkExamples = extract >=> traverse_ check
+checkSnippets :: FilePath -> IO ()
+checkSnippets = extract >=> traverse_ check
 
-extract :: FilePath -> IO [Example]
+extract :: FilePath -> IO [Snippet]
 extract file = do
     fileContents <- Text.readFile file
-    let (lastExample, examples) =
+    let (lastSnippet, snippets) =
             runWriter
                 $ (`execStateT` Nothing)
-                $ traverse_ parseExampleLine
+                $ traverse_ parseSnippetLine
                 $ zip [1 ..]
                 $ Text.lines fileContents
-    when (isJust lastExample) $ error $ show lastExample
-    pure $ toList examples
+    when (isJust lastSnippet) $ error $ show lastSnippet
+    pure $ toList snippets
   where
 
-    parseExampleLine (lineNo, line) = do
-        currentExample <- get
+    parseSnippetLine (lineNo, line) = do
+        currentSnippet <- get
         case Text.stripPrefix "```" line of
-            Nothing -> when (isJust currentExample) $ appendCurrent line
-            Just "" -> case currentExample of
-                Just example -> flush example
+            Nothing -> case currentSnippet of
+                Nothing -> pure ()
+                Just (snippet@Snippet { content }) ->
+                    put $ Just snippet { content = content <> "\n" <> line }
+            Just "" -> case currentSnippet of
+                Just snippet -> flush snippet
                 Nothing      -> startNoLanguage lineNo
             Just languageSpec -> case Text.break isSpace languageSpec of
-                ("c", configText)
-                    | isJust currentExample -> error
-                        "cannot start snippet inside snippet"
-                    | otherwise -> start configText lineNo
+                ("c", configText) -> case currentSnippet of
+                    Just _  -> error "cannot start snippet inside snippet"
+                    Nothing -> start configText lineNo
                 (exLanguage, _) ->
                     error $ "unknown language: " ++ show exLanguage
 
-    appendCurrent line = modify $ fmap $ \case
-        example@Example { content } ->
-            example { content = content <> "\n" <> line }
-
-    flush example = do
-        tell $ DList.singleton example
+    flush snippet = do
+        tell $ DList.singleton snippet
         put Nothing
 
-    startNoLanguage lineNo = put $ Just Example
-        { config    = defaultExampleConfig
+    startNoLanguage lineNo = put $ Just Snippet
+        { config    = defaultSnippetConfig
         , content   = Text.empty
         , filepath  = file
         , language  = NoLanguage
         , startLine = lineNo
         }
 
-    start configText lineNo = put $ Just Example
+    start configText lineNo = put $ Just Snippet
         { config    = decodeConfig configText
         , content   = Text.empty
         , filepath  = file
@@ -131,16 +129,16 @@ extract file = do
         }
       where
         decodeConfig =
-            fromMaybe defaultExampleConfig
+            fromMaybe defaultSnippetConfig
                 . fromRight (error . (msg ++))
                 . Yaml.decodeEither
                 . encodeUtf8
         msg = formatToString (string % ", line " % int % ": ") file lineNo
         fromRight a = either a id
 
-check :: Example -> IO ()
-check Example { language = NoLanguage } = pure ()
-check example@Example { language = C } =
+check :: Snippet -> IO ()
+check Snippet { language = NoLanguage } = pure ()
+check snippet@Snippet { language = C } =
     withSystemTempDirectory "ComputerScience.test" $ \tmp -> do
         let src = tmp </> "source.c"
         Text.writeFile src
@@ -167,5 +165,5 @@ check example@Example { language = C } =
             , "-o" <> (src -<.> "o")
             ]
   where
-    Example { config, content, filepath, startLine } = example
-    ExampleConfig { after, include }                 = config
+    Snippet { config, content, filepath, startLine } = snippet
+    SnippetConfig { after, include }                 = config
