@@ -1,5 +1,17 @@
 #!/usr/bin/env stack
--- stack --resolver=lts-10.0 script
+{-  stack --resolver=lts-10.0
+    script
+        --package=aeson
+        --package=directory
+        --package=dlist
+        --package=filepath
+        --package=formatting
+        --package=mtl
+        --package=process
+        --package=temporary
+        --package=text
+        --package=yaml
+-}
 {-# OPTIONS_GHC -Werror #-}
 {-# OPTIONS_GHC -Wall -Wincomplete-record-updates -Wincomplete-uni-patterns #-}
 
@@ -9,28 +21,32 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-import           Prelude hiding (FilePath)
-
 import           Control.Monad.State
 import           Control.Monad.Writer
 import           Data.Aeson.TH
 import           Data.Char
 import qualified Data.DList as DList
+import           Data.Foldable
+import           Data.List
 import           Data.Maybe
-import qualified Data.Text as Text
 import           Data.Text.Encoding
+import           Data.Text.Lazy (Text)
+import qualified Data.Text.Lazy as Text
+import qualified Data.Text.Lazy.IO as Text
 import           Data.Yaml as Yaml
-import           Filesystem.Path.CurrentOS (encodeString, replaceExtension)
+import           Formatting
 import           Numeric.Natural
 import           System.Directory
-import           Turtle
+import           System.FilePath
+import           System.IO.Temp
+import           System.Process
 
 data Language = NoLanguage | C
     deriving Show
 
 data ExampleConfig = ExampleConfig
     { after   :: Maybe Text
-    , include :: Maybe [Text]
+    , include :: Maybe [FilePath]
     }
     deriving Show
 
@@ -49,25 +65,30 @@ data Example = Example
     deriving Show
 
 main :: IO ()
-main = sh $ do
-    file      <- ls "."
-    Just "md" <- pure $ extension file
-    checkExamples file
+main = do
+    files <- listDirectory "."
+    for_ (sort files) $ \file -> case takeExtension file of
+        ".md" -> do
+            putStr $ file ++ " ...\t"
+            checkExamples file
+            putStrLn "OK"
+        _ -> pure () -- ignore
+    putStrLn "OK"
 
-checkExamples :: FilePath -> Shell ()
-checkExamples = extract >=> check
+checkExamples :: FilePath -> IO ()
+checkExamples = extract >=> traverse_ check
 
-extract :: FilePath -> Shell Example
+extract :: FilePath -> IO [Example]
 extract file = do
-    fileContents <- liftIO $ readTextFile file
+    fileContents <- Text.readFile file
     let (lastExample, examples) =
             runWriter
                 $ (`execStateT` Nothing)
-                $ mapM_ parseExampleLine
+                $ traverse_ parseExampleLine
                 $ zip [1 ..]
                 $ Text.lines fileContents
     when (isJust lastExample) $ error $ show lastExample
-    select examples
+    pure $ toList examples
   where
     parseExampleLine (lineNo, line) = do
         currentExample <- get
@@ -113,42 +134,39 @@ extract file = do
                 . fromRight (error . (msg ++))
                 . Yaml.decodeEither
                 . encodeUtf8
-        msg = Text.unpack $ format (fp % ", line " % d % ": ") file lineNo
+                . Text.toStrict
+        msg =
+            Text.unpack $ format (string % ", line " % int % ": ") file lineNo
         fromRight a = either a id
 
-check :: Example -> Shell ()
-check example = case language of
-    NoLanguage -> pure () -- ok
-    C          -> do
-        systemTempDir <- fromString <$> liftIO getTemporaryDirectory
-        tmp           <- mktempdir systemTempDir "ComputerScience.test."
+check :: Example -> IO ()
+check Example { language = NoLanguage } = pure ()
+check example@Example { language = C } =
+    withSystemTempDirectory "ComputerScience.test" $ \tmp -> do
         let src = tmp </> "source.c"
-        liftIO
-            $  writeTextFile src
+        Text.writeFile src
             $  Text.unlines
-            $  [ format ("#include \"" % s % "\"") inc
+            $  [ format ("#include \"" % string % "\"") inc
                | inc <- fromMaybe [] include
                ]
-            ++ [ format ("#line " % d % " \"" % fp % "\"") startLine filepath
+            ++ [ format ("#line " % int % " \"" % string % "\"")
+                        startLine
+                        filepath
                , content
                , fromMaybe "" after
                ]
-        wd <- pwd
-        procs
+        srcDir <- getCurrentDirectory
+        callProcess
             "gcc"
             [ "-c"
-            , "-I" <> encodeText wd
+            , "-I" <> srcDir
             , "-Wall"
             , "-Werror"
             , "-Wextra"
             , "-pedantic"
-            , encodeText src
-            , "-o" <> encodeText (src `replaceExtension` "o")
+            , src
+            , "-o" <> (src -<.> "o")
             ]
-            empty
   where
-    Example { config, content, filepath, language, startLine } = example
-    ExampleConfig { after, include }                           = config
-
-encodeText :: FilePath -> Text
-encodeText = fromString . encodeString
+    Example { config, content, filepath, startLine } = example
+    ExampleConfig { after, include }                 = config
