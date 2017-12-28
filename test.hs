@@ -3,23 +3,23 @@
 {-# OPTIONS_GHC -Werror #-}
 {-# OPTIONS_GHC -Wall -Wincomplete-record-updates -Wincomplete-uni-patterns #-}
 
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE NamedFieldPuns    #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE TemplateHaskell #-}
 
-import           Prelude                   hiding (FilePath)
+import           Prelude hiding (FilePath)
 
 import           Control.Monad.State
 import           Control.Monad.Writer
 import           Data.Aeson.TH
 import           Data.Char
-import qualified Data.DList                as DList
+import qualified Data.DList as DList
 import           Data.Maybe
-import qualified Data.Text                 as Text
+import qualified Data.Text as Text
 import           Data.Text.Encoding
-import           Data.Yaml                 as Yaml
+import           Data.Yaml as Yaml
 import           Filesystem.Path.CurrentOS (encodeString, replaceExtension)
 import           Numeric.Natural
 import           System.Directory
