@@ -3,7 +3,6 @@
     script
         --package=aeson
         --package=directory
-        --package=dlist
         --package=filepath
         --package=formatting
         --package=mtl
@@ -25,7 +24,6 @@ import           Control.Monad.State
 import           Control.Monad.Writer
 import           Data.Aeson.TH
 import           Data.Char
-import qualified Data.DList as DList
 import           Data.Foldable
 import           Data.List
 import           Data.Maybe
@@ -109,7 +107,7 @@ extract file = do
                     error $ "unknown language: " ++ show exLanguage
 
     flush snippet = do
-        tell $ DList.singleton snippet
+        tell [snippet]
         put Nothing
 
     startNoLanguage lineNo = put $ Just Snippet
