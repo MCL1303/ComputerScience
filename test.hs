@@ -4,7 +4,7 @@
         --package=aeson
         --package=directory
         --package=filepath
-        --package=formatting
+        --package=interpolate
         --package=mtl
         --package=process
         --package=temporary
@@ -18,6 +18,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 import           Control.Monad.State
@@ -27,12 +28,12 @@ import           Data.Char
 import           Data.Foldable
 import           Data.List
 import           Data.Maybe
+import           Data.String.Interpolate.IsString
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Text.Encoding
 import qualified Data.Text.IO as Text
 import           Data.Yaml as Yaml
-import           Formatting
 import           Numeric.Natural
 import           System.Directory
 import           System.FilePath
@@ -131,7 +132,7 @@ extract file = do
                 . fromRight (error . (msg ++))
                 . Yaml.decodeEither
                 . encodeUtf8
-        msg = formatToString (string % ", line " % int % ": ") file lineNo
+        msg = [i|#{file}, line #{lineNo}: |]
         fromRight a = either a id
 
 check :: Snippet -> IO ()
@@ -141,12 +142,8 @@ check snippet@Snippet { language = C } =
         let src = tmp </> "source.c"
         Text.writeFile src
             $  Text.unlines
-            $  [ sformat ("#include \"" % string % "\"") inc
-               | inc <- fromMaybe [] include
-               ]
-            ++ [ sformat ("#line " % int % " \"" % string % "\"")
-                         startLine
-                         filepath
+            $  [ [i|#include "#{inc}"|] | inc <- fromMaybe [] include ]
+            ++ [ [i|#line #{startLine} "#{filepath}"|]
                , content
                , fromMaybe "" after
                ]
