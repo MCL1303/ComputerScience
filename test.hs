@@ -18,12 +18,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-import           Control.Monad.State
-import           Control.Monad.Writer
 import           Data.Char
 import           Data.Foldable
 import           Data.List
 import           Data.Maybe
+import           Data.Semigroup
 import           Data.String.Interpolate.IsString
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -82,59 +81,45 @@ checkSnippets file = do
 extract :: FilePath -> IO [Snippet]
 extract file = do
     fileContents <- Text.readFile file
-    let (lastSnippet, snippets) =
-            runWriter
-                $ (`execStateT` Nothing)
-                $ traverse_ parseSnippetLine
-                $ zip [1 ..]
-                $ Text.lines fileContents
-    when (isJust lastSnippet) $ error $ show lastSnippet
-    pure $ toList snippets
+    pure
+        $ toList
+        $ map parseSnippet
+        $ splitRawSnippets Nothing
+        $ zip [1 ..]
+        $ Text.lines fileContents
   where
 
-    parseSnippetLine (lineNo, line) = do
-        currentSnippet <- get
+    splitRawSnippets _ [] = []
+    splitRawSnippets Nothing ((lineNo, line):rest) =
         case Text.stripPrefix "```" line of
-            Nothing -> case currentSnippet of
-                Nothing -> pure ()
-                Just (snippet@Snippet { content }) ->
-                    put $ Just snippet { content = content <> "\n" <> line }
-            Just "" -> case currentSnippet of
-                Just snippet -> flush snippet
-                Nothing      -> startNoLanguage lineNo
-            Just languageSpec -> case Text.break isSpace languageSpec of
-                ("c", configText) -> case currentSnippet of
-                    Just _  -> error "cannot start snippet inside snippet"
-                    Nothing -> start configText lineNo
-                (exLanguage, _) ->
-                    error $ "unknown language: " <> show exLanguage
+            Nothing     -> splitRawSnippets Nothing rest
+            Just header -> splitRawSnippets (Just (lineNo, header, [])) rest
+    splitRawSnippets (Just snippet) ((_, line):rest) =
+        case Text.stripPrefix "```" line of
+            Nothing -> splitRawSnippets
+                (Just (lineNo, header, content ++ [line]))
+                rest
+                where (lineNo, header, content) = snippet
+            Just _ -> snippet : splitRawSnippets Nothing rest
 
-    flush snippet = do
-        tell [snippet]
-        put Nothing
-
-    startNoLanguage lineNo = put $ Just Snippet
-        { config    = defaultSnippetConfig
-        , content   = Text.empty
-        , filepath  = file
-        , language  = NoLanguage
-        , startLine = lineNo
-        }
-
-    start configText lineNo = put $ Just Snippet
+    parseSnippet (lineNo, header, content) = Snippet
         { config    = decodeConfig configText
-        , content   = Text.empty
+        , content   = Text.unlines content
         , filepath  = file
-        , language  = C
+        , language
         , startLine = lineNo
         }
       where
+        (languageText, configText) = Text.break isSpace header
+        language                   = case languageText of
+            ""  -> NoLanguage
+            "c" -> C
+            _   -> error $ "unknown language: " <> show languageText
         decodeConfig =
             fromMaybe defaultSnippetConfig
-                . fromRight (error . (msg <>))
+                . fromRight (error . ([i|#{file}, line #{lineNo}: |] <>))
                 . Yaml.decodeEither
                 . encodeUtf8
-        msg = [i|#{file}, line #{lineNo}: |]
         fromRight a = either a id
 
 check :: Snippet -> IO ()
