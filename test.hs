@@ -34,7 +34,6 @@ import qualified Data.Text as Text
 import           Data.Text.Encoding
 import qualified Data.Text.IO as Text
 import           Data.Yaml as Yaml
-import           Numeric.Natural
 import           System.Directory
 import           System.FilePath
 import           System.IO.Temp
@@ -59,7 +58,7 @@ data Snippet = Snippet
     , content   :: Text
     , filepath  :: FilePath
     , language  :: Language
-    , startLine :: Natural
+    , startLine :: Int
     }
     deriving Show
 
