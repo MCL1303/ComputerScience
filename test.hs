@@ -84,23 +84,20 @@ extract file = do
     pure
         $ toList
         $ map parseSnippet
-        $ splitRawSnippets Nothing
+        $ splitRawSnippets
         $ zip [1 ..]
         $ Text.lines fileContents
   where
 
-    splitRawSnippets _ [] = []
-    splitRawSnippets Nothing ((lineNo, line):rest) =
-        case Text.stripPrefix "```" line of
-            Nothing     -> splitRawSnippets Nothing rest
-            Just header -> splitRawSnippets (Just (lineNo, header, [])) rest
-    splitRawSnippets (Just snippet) ((_, line):rest) =
-        case Text.stripPrefix "```" line of
-            Nothing -> splitRawSnippets
-                (Just (lineNo, header, content ++ [line]))
-                rest
-                where (lineNo, header, content) = snippet
-            Just _ -> snippet : splitRawSnippets Nothing rest
+    splitRawSnippets []    = []
+    splitRawSnippets input = fromMaybe [] $ do
+        (_text, (lineNo, header):afterHeader) <- pure $ breakSnippet input
+        languageSpec                          <- Text.stripPrefix "```" header
+        let (snippet, rest) = breakSnippet afterHeader
+        Just $ (lineNo, languageSpec, map snd snippet) : splitRawSnippets
+            (take 1 rest)
+      where
+        breakSnippet = break $ \(_lineNo, line) -> "```" `Text.isPrefixOf` line
 
     parseSnippet (lineNo, header, content) = Snippet
         { config    = decodeConfig configText
@@ -114,7 +111,13 @@ extract file = do
         language                   = case languageText of
             ""  -> NoLanguage
             "c" -> C
-            _   -> error $ "unknown language: " <> show languageText
+            _   -> error $ concat
+                [ file
+                , ", line "
+                , show lineNo
+                , ": unknown language "
+                , Text.unpack languageText
+                ]
         decodeConfig =
             fromMaybe defaultSnippetConfig
                 . fromRight (error . ([i|#{file}, line #{lineNo}: |] <>))
