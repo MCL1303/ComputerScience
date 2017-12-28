@@ -29,10 +29,10 @@ import qualified Data.DList as DList
 import           Data.Foldable
 import           Data.List
 import           Data.Maybe
+import           Data.Text (Text)
+import qualified Data.Text as Text
 import           Data.Text.Encoding
-import           Data.Text.Lazy (Text)
-import qualified Data.Text.Lazy as Text
-import qualified Data.Text.Lazy.IO as Text
+import qualified Data.Text.IO as Text
 import           Data.Yaml as Yaml
 import           Formatting
 import           Numeric.Natural
@@ -134,9 +134,7 @@ extract file = do
                 . fromRight (error . (msg ++))
                 . Yaml.decodeEither
                 . encodeUtf8
-                . Text.toStrict
-        msg =
-            Text.unpack $ format (string % ", line " % int % ": ") file lineNo
+        msg = formatToString (string % ", line " % int % ": ") file lineNo
         fromRight a = either a id
 
 check :: Example -> IO ()
@@ -146,12 +144,12 @@ check example@Example { language = C } =
         let src = tmp </> "source.c"
         Text.writeFile src
             $  Text.unlines
-            $  [ format ("#include \"" % string % "\"") inc
+            $  [ sformat ("#include \"" % string % "\"") inc
                | inc <- fromMaybe [] include
                ]
-            ++ [ format ("#line " % int % " \"" % string % "\"")
-                        startLine
-                        filepath
+            ++ [ sformat ("#line " % int % " \"" % string % "\"")
+                         startLine
+                         filepath
                , content
                , fromMaybe "" after
                ]
