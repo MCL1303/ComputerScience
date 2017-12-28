@@ -1,7 +1,6 @@
 #!/usr/bin/env stack
 {-  stack --resolver=lts-10.0
     script
-        --package=aeson
         --package=directory
         --package=filepath
         --package=interpolate
@@ -21,7 +20,6 @@
 
 import           Control.Monad.State
 import           Control.Monad.Writer
-import           Data.Aeson.Types
 import           Data.Char
 import           Data.Foldable
 import           Data.List
@@ -51,7 +49,7 @@ instance FromJSON SnippetConfig where
         after   <- v .:? "after"   .!= ""
         include <- v .:? "include" .!= []
         pure SnippetConfig{after, include}
-    parseJSON invalid = typeMismatch "SnippetConfig" invalid
+    parseJSON _ = fail "Expected object for SnippetConfig"
 
 defaultSnippetConfig :: SnippetConfig
 defaultSnippetConfig = SnippetConfig {after = "", include = []}
