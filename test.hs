@@ -15,15 +15,13 @@
 {-# OPTIONS_GHC -Wall -Wincomplete-record-updates -Wincomplete-uni-patterns #-}
 
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 import           Control.Monad.State
 import           Control.Monad.Writer
-import           Data.Aeson.TH
+import           Data.Aeson.Types
 import           Data.Char
 import           Data.Foldable
 import           Data.List
@@ -43,15 +41,20 @@ data Language = NoLanguage | C
     deriving Show
 
 data SnippetConfig = SnippetConfig
-    { after   :: Maybe Text
-    , include :: Maybe [FilePath]
+    { after   :: Text
+    , include :: [FilePath]
     }
     deriving Show
 
-deriveFromJSON defaultOptions ''SnippetConfig
+instance FromJSON SnippetConfig where
+    parseJSON (Object v) = do
+        after   <- v .:? "after"   .!= ""
+        include <- v .:? "include" .!= []
+        pure SnippetConfig{after, include}
+    parseJSON invalid = typeMismatch "SnippetConfig" invalid
 
 defaultSnippetConfig :: SnippetConfig
-defaultSnippetConfig = SnippetConfig {after = Nothing, include = Nothing}
+defaultSnippetConfig = SnippetConfig {after = "", include = []}
 
 data Snippet = Snippet
     { config    :: SnippetConfig
@@ -141,11 +144,8 @@ check snippet@Snippet { language = C } =
         let src = tmp </> "source.c"
         Text.writeFile src
             $  Text.unlines
-            $  [ [i|#include "#{inc}"|] | inc <- fromMaybe [] include ]
-            ++ [ [i|#line #{startLine} "#{filepath}"|]
-               , content
-               , fromMaybe "" after
-               ]
+            $  [ [i|#include "#{inc}"|] | inc <- include ]
+            ++ [[i|#line #{startLine} "#{filepath}"|], content, after]
         srcDir <- getCurrentDirectory
         callProcess
             "gcc"
