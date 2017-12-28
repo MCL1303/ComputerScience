@@ -70,7 +70,7 @@ main = do
     files <- listDirectory "."
     for_ (sort files) $ \file -> case takeExtension file of
         ".md" -> do
-            putStr $ file ++ " ...\t"
+            putStr $ file <> " ...\t"
             checkSnippets file
             putStrLn "OK"
         _ -> pure () -- ignore
@@ -107,7 +107,7 @@ extract file = do
                     Just _  -> error "cannot start snippet inside snippet"
                     Nothing -> start configText lineNo
                 (exLanguage, _) ->
-                    error $ "unknown language: " ++ show exLanguage
+                    error $ "unknown language: " <> show exLanguage
 
     flush snippet = do
         tell [snippet]
@@ -131,7 +131,7 @@ extract file = do
       where
         decodeConfig =
             fromMaybe defaultSnippetConfig
-                . fromRight (error . (msg ++))
+                . fromRight (error . (msg <>))
                 . Yaml.decodeEither
                 . encodeUtf8
         msg = [i|#{file}, line #{lineNo}: |]
@@ -145,7 +145,7 @@ check snippet@Snippet { language = C } =
         Text.writeFile src
             $  Text.unlines
             $  [ [i|#include "#{inc}"|] | inc <- include ]
-            ++ [[i|#line #{startLine} "#{filepath}"|], content, after]
+            <> [[i|#line #{startLine} "#{filepath}"|], content, after]
         srcDir <- getCurrentDirectory
         callProcess
             "gcc"
