@@ -1,17 +1,16 @@
 #!/usr/bin/env stack
-{-  stack --resolver=lts-10.0
-    script
-        --package=directory
-        --package=filepath
-        --package=interpolate
-        --package=process
-        --package=protolude
-        --package=temporary
-        --package=text
-        --package=yaml
+{-  stack   --resolver=lts-10.0
+    script  --package=directory
+            --package=filepath
+            --package=interpolate
+            --package=process
+            --package=protolude
+            --package=temporary
+            --package=text
+            --package=yaml
 -}
-{-# OPTIONS_GHC -Werror #-}
-{-# OPTIONS_GHC -Wall -Wincomplete-record-updates -Wincomplete-uni-patterns #-}
+{-# OPTIONS -Werror #-}
+{-# OPTIONS -Wall -Wincomplete-record-updates -Wincomplete-uni-patterns #-}
 
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NamedFieldPuns #-}
