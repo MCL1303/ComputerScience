@@ -70,14 +70,13 @@ extract file =
 
     splitSnippets [] = []
     splitSnippets fileLines = fromMaybe [] $ do
-        (_text, (lineNo, spec) : afterHeader) <- pure $ breakSnippet fileLines
-        languageSpec <- Text.stripPrefix "```" spec
-        let (snippet, rest) = breakSnippet afterHeader
-        pure $
-            (lineNo, languageSpec, map snd snippet)
-            : splitSnippets (take 1 rest)
+        (lineNo, specLine) : afterSpec <- pure $ skipToSnippet fileLines
+        spec <- Text.stripPrefix "```" specLine
+        let (snippet, rest) = break (isCodeMarker . snd) afterSpec
+        pure $ (lineNo, spec, map snd snippet) : splitSnippets (take 1 rest)
       where
-        breakSnippet = break $ \(_lineNo, line) -> "```" `Text.isPrefixOf` line
+        skipToSnippet = dropWhile $ not . isCodeMarker . snd
+        isCodeMarker line = "```" `Text.isPrefixOf` line
 
     parseSnippet (lineNo, spec, content) = Snippet
         { config    =
