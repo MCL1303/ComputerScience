@@ -33,7 +33,8 @@ instance FromJSON SnippetConfig where
         after   <- v .:? "after"   .!= ""
         include <- v .:? "include" .!= []
         pure SnippetConfig{after, include}
-    parseJSON _ = fail "Expected object for SnippetConfig"
+    parseJSON Null = pure defaultSnippetConfig
+    parseJSON _    = fail "Expected object for SnippetConfig"
 
 defaultSnippetConfig :: SnippetConfig
 defaultSnippetConfig = SnippetConfig{after = "", include = []}
@@ -80,8 +81,7 @@ extract file =
 
     parseSnippet (lineNo, spec, content) = Snippet
         { config    =
-            fromMaybe defaultSnippetConfig
-            $ either (error . ([i|#{file}, line #{lineNo}: |] <>)) identity
+            either (error . ([i|#{file}, line #{lineNo}: |] <>)) identity
             $ Yaml.decodeEither
             $ encodeUtf8 configText
         , content   = Text.unlines content
