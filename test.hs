@@ -1,14 +1,5 @@
 #!/usr/bin/env stack
-{-  stack   --resolver=lts-10.0
-    script  --package=directory
-            --package=filepath
-            --package=interpolate
-            --package=process
-            --package=protolude
-            --package=temporary
-            --package=text
-            --package=yaml
--}
+-- stack --resolver=lts-10.0 script
 {-# OPTIONS -Werror #-}
 {-# OPTIONS -Wall -Wincomplete-record-updates -Wincomplete-uni-patterns #-}
 
@@ -19,24 +10,21 @@
 {-# LANGUAGE QuasiQuotes #-}
 
 import           Prelude (error, fail)
-import           Protolude
+import           Protolude hiding (FilePath)
+import           Turtle
 
 import           Data.Char (isSpace)
 import           Data.String.Interpolate.IsString (i)
-import           Data.Text (lines, stripPrefix, unlines)
 import qualified Data.Text as Text
 import           Data.Yaml as Yaml
-import           System.Directory (getCurrentDirectory, listDirectory)
-import           System.FilePath (takeExtension, (-<.>), (</>))
-import           System.IO.Temp (withSystemTempDirectory)
-import           System.Process (callProcess)
+import           Filesystem.Path.CurrentOS (encodeString, replaceExtension)
 
 data Language = NoLanguage | C
     deriving Show
 
 data SnippetConfig = SnippetConfig
     { after   :: Text
-    , include :: [FilePath]
+    , include :: [Text]
     }
     deriving Show
 
@@ -53,7 +41,7 @@ defaultSnippetConfig = SnippetConfig {after = "", include = []}
 data Snippet = Snippet
     { config    :: SnippetConfig
     , content   :: Text
-    , filepath  :: FilePath
+    , filepath  :: Text
     , language  :: Language
     , startLine :: Int
     }
@@ -61,10 +49,10 @@ data Snippet = Snippet
 
 main :: IO ()
 main = do
-    files <- listDirectory "."
-    for_ (sort files) $ \file -> case takeExtension file of
-        ".md" -> do
-            putStr $ file <> " ...\t"
+    files <- Turtle.sort $ ls "."
+    for_ files $ \file -> case extension file of
+        Just "md" -> do
+            putStr $ encodeString file <> " ...\t"
             checkSnippets file
             putText "OK"
         _ -> pure () -- ignore
@@ -77,30 +65,30 @@ checkSnippets file = do
 
 extract :: FilePath -> IO [Snippet]
 extract file = do
-    fileContents <- readFile file
-    pure $ toList $ map parseSnippet $ splitRawSnippets $ zip [1 ..] $ lines
+    fileContents <- readTextFile file
+    pure $ map parseSnippet $ splitSnippets $ zip [1 ..] $ Text.lines
         fileContents
   where
 
-    splitRawSnippets []    = []
-    splitRawSnippets input = fromMaybe [] $ do
-        (_text, (lineNo, header):afterHeader) <- pure $ breakSnippet input
-        languageSpec                          <- stripPrefix "```" header
+    splitSnippets []        = []
+    splitSnippets fileLines = fromMaybe [] $ do
+        (_text, (lineNo, spec):afterHeader) <- pure $ breakSnippet fileLines
+        languageSpec                        <- Text.stripPrefix "```" spec
         let (snippet, rest) = breakSnippet afterHeader
-        Just $ (lineNo, languageSpec, map snd snippet) : splitRawSnippets
+        Just $ (lineNo, languageSpec, map snd snippet) : splitSnippets
             (take 1 rest)
       where
         breakSnippet = break $ \(_lineNo, line) -> "```" `Text.isPrefixOf` line
 
-    parseSnippet (lineNo, header, content) = Snippet
+    parseSnippet (lineNo, spec, content) = Snippet
         { config    = decodeConfig configText
-        , content   = unlines content
-        , filepath  = file
+        , content   = Text.unlines content
+        , filepath  = toS $ encodeString file
         , language
         , startLine = lineNo
         }
       where
-        (lang, configText) = Text.break isSpace header
+        (lang, configText) = Text.break isSpace spec
         language           = case lang of
             ""  -> NoLanguage
             "c" -> C
@@ -114,25 +102,27 @@ extract file = do
 
 checkSnippet :: Snippet -> IO ()
 checkSnippet Snippet { language = NoLanguage } = pure ()
-checkSnippet snippet@Snippet { language = C } =
-    withSystemTempDirectory "ComputerScience.test" $ \tmp -> do
-        let src = tmp </> "source.c"
-        writeFile src
-            $  unlines
+checkSnippet snippet@Snippet { language = C }  = sh $ do
+    tmp <- mktempdir "" "ComputerScience.test"
+    liftIO $ do
+        let snippetFile = tmp </> "snippet.c"
+        writeTextFile snippetFile
+            $  Text.unlines
             $  [ [i|#include "#{inc}"|] | inc <- include ]
             <> [[i|#line #{startLine} "#{filepath}"|], content, after]
-        srcDir <- getCurrentDirectory
-        callProcess
+        sourceDir <- pwd
+        procs
             "gcc"
             [ "-c"
-            , "-I" <> srcDir
+            , "-I" <> toS (encodeString sourceDir)
             , "-Wall"
             , "-Werror"
             , "-Wextra"
             , "-pedantic"
-            , src
-            , "-o" <> (src -<.> "o")
+            , toS $ encodeString snippetFile
+            , "-o" <> toS (encodeString $ snippetFile `replaceExtension` "o")
             ]
+            empty
   where
     Snippet { config, content, filepath, startLine } = snippet
     SnippetConfig { after, include }                 = config
